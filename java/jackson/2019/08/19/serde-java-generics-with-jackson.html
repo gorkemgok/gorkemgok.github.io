@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.6.1 -->
+<title>How to Serialize and Deserialize Generic Java Classes in Jackson | Gorkem Gok’s Developer Blog</title>
+<meta name="generator" content="Jekyll v3.8.6" />
+<meta property="og:title" content="How to Serialize and Deserialize Generic Java Classes in Jackson" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="*Jackson version: 2.9.9" />
+<meta property="og:description" content="*Jackson version: 2.9.9" />
+<link rel="canonical" href="http://localhost:4000/java/jackson/2019/08/19/serde-java-generics-with-jackson.html" />
+<meta property="og:url" content="http://localhost:4000/java/jackson/2019/08/19/serde-java-generics-with-jackson.html" />
+<meta property="og:site_name" content="Gorkem Gok’s Developer Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2019-08-19T00:16:15+03:00" />
+<script type="application/ld+json">
+{"url":"http://localhost:4000/java/jackson/2019/08/19/serde-java-generics-with-jackson.html","description":"*Jackson version: 2.9.9","dateModified":"2019-08-19T00:16:15+03:00","datePublished":"2019-08-19T00:16:15+03:00","headline":"How to Serialize and Deserialize Generic Java Classes in Jackson","@type":"BlogPosting","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/java/jackson/2019/08/19/serde-java-generics-with-jackson.html"},"@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="Gorkem Gok's Developer Blog" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Gorkem Gok&#39;s Developer Blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">How to Serialize and Deserialize Generic Java Classes in Jackson</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2019-08-19T00:16:15+03:00" itemprop="datePublished">Aug 19, 2019
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p>*Jackson version: 2.9.9</p>
+
+<p>When you try to serialize a generic class to JSON, Jackson will serialize the generic type correctly 
+with no extra afford but when you deserialize the serialized JSON you will end up 
+with <code class="highlighter-rouge">LinkedHashMap</code> as generic type. The type of the generic type will be lost.</p>
+
+<p>MyExchange.java</p>
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">package</span> <span class="n">com</span><span class="o">.</span><span class="na">gorkemgok</span><span class="o">.</span><span class="na">example</span><span class="o">.</span><span class="na">jackson</span><span class="o">.</span><span class="na">generic</span><span class="o">;</span>
+
+<span class="kd">public</span> <span class="kd">class</span> <span class="nc">MyExchange</span><span class="o">&lt;</span><span class="no">T</span><span class="o">&gt;</span> <span class="o">{</span>
+
+    <span class="kd">private</span> <span class="no">T</span> <span class="n">body</span><span class="o">;</span>
+
+    <span class="kd">private</span> <span class="kt">int</span> <span class="n">someOtherField</span><span class="o">;</span>
+
+    <span class="kd">public</span> <span class="nf">MyExchange</span><span class="o">(</span><span class="no">T</span> <span class="n">body</span><span class="o">,</span> <span class="kt">int</span> <span class="n">someOtherField</span><span class="o">)</span> <span class="o">{</span>
+        <span class="k">this</span><span class="o">.</span><span class="na">body</span> <span class="o">=</span> <span class="n">body</span><span class="o">;</span>
+        <span class="k">this</span><span class="o">.</span><span class="na">someOtherField</span> <span class="o">=</span> <span class="n">someOtherField</span><span class="o">;</span>
+    <span class="o">}</span>
+
+    <span class="kd">public</span> <span class="nf">MyExchange</span><span class="o">()</span> <span class="o">{</span>
+    <span class="o">}</span>
+
+    <span class="kd">public</span> <span class="no">T</span> <span class="nf">getBody</span><span class="o">()</span> <span class="o">{</span>
+        <span class="k">return</span> <span class="n">body</span><span class="o">;</span>
+    <span class="o">}</span>
+
+    <span class="kd">public</span> <span class="kt">void</span> <span class="nf">setBody</span><span class="o">(</span><span class="no">T</span> <span class="n">body</span><span class="o">)</span> <span class="o">{</span>
+        <span class="k">this</span><span class="o">.</span><span class="na">body</span> <span class="o">=</span> <span class="n">body</span><span class="o">;</span>
+    <span class="o">}</span>
+
+    <span class="kd">public</span> <span class="kt">int</span> <span class="nf">getSomeOtherField</span><span class="o">()</span> <span class="o">{</span>
+        <span class="k">return</span> <span class="n">someOtherField</span><span class="o">;</span>
+    <span class="o">}</span>
+
+    <span class="kd">public</span> <span class="kt">void</span> <span class="nf">setSomeOtherField</span><span class="o">(</span><span class="kt">int</span> <span class="n">someOtherField</span><span class="o">)</span> <span class="o">{</span>
+        <span class="k">this</span><span class="o">.</span><span class="na">someOtherField</span> <span class="o">=</span> <span class="n">someOtherField</span><span class="o">;</span>
+    <span class="o">}</span>
+<span class="o">}</span>
+</code></pre></div></div>
+
+<p>MyBody.java</p>
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">package</span> <span class="n">com</span><span class="o">.</span><span class="na">gorkemgok</span><span class="o">.</span><span class="na">example</span><span class="o">.</span><span class="na">jackson</span><span class="o">.</span><span class="na">generic</span><span class="o">;</span>
+
+<span class="kd">public</span> <span class="kd">class</span> <span class="nc">MyBody</span> <span class="o">{</span>
+
+    <span class="kd">private</span> <span class="kt">int</span> <span class="n">someOtherField</span><span class="o">;</span>
+
+    <span class="kd">private</span> <span class="nc">String</span> <span class="n">message</span><span class="o">;</span>
+
+    <span class="kd">public</span> <span class="nf">MyBody</span><span class="o">(</span><span class="kt">int</span> <span class="n">someOtherField</span><span class="o">,</span> <span class="nc">String</span> <span class="n">message</span><span class="o">)</span> <span class="o">{</span>
+        <span class="k">this</span><span class="o">.</span><span class="na">someOtherField</span> <span class="o">=</span> <span class="n">someOtherField</span><span class="o">;</span>
+        <span class="k">this</span><span class="o">.</span><span class="na">message</span> <span class="o">=</span> <span class="n">message</span><span class="o">;</span>
+    <span class="o">}</span>
+
+    <span class="kd">public</span> <span class="nf">MyBody</span><span class="o">()</span> <span class="o">{</span>
+    <span class="o">}</span>
+
+    <span class="kd">public</span> <span class="kt">int</span> <span class="nf">getSomeOtherField</span><span class="o">()</span> <span class="o">{</span>
+        <span class="k">return</span> <span class="n">someOtherField</span><span class="o">;</span>
+    <span class="o">}</span>
+
+    <span class="kd">public</span> <span class="kt">void</span> <span class="nf">setSomeOtherField</span><span class="o">(</span><span class="kt">int</span> <span class="n">someOtherField</span><span class="o">)</span> <span class="o">{</span>
+        <span class="k">this</span><span class="o">.</span><span class="na">someOtherField</span> <span class="o">=</span> <span class="n">someOtherField</span><span class="o">;</span>
+    <span class="o">}</span>
+
+    <span class="kd">public</span> <span class="nc">String</span> <span class="nf">getMessage</span><span class="o">()</span> <span class="o">{</span>
+        <span class="k">return</span> <span class="n">message</span><span class="o">;</span>
+    <span class="o">}</span>
+
+    <span class="kd">public</span> <span class="kt">void</span> <span class="nf">setMessage</span><span class="o">(</span><span class="nc">String</span> <span class="n">message</span><span class="o">)</span> <span class="o">{</span>
+        <span class="k">this</span><span class="o">.</span><span class="na">message</span> <span class="o">=</span> <span class="n">message</span><span class="o">;</span>
+    <span class="o">}</span>
+<span class="o">}</span>
+</code></pre></div></div>
+
+<p>When you run the code below:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="o">...</span>
+<span class="nc">ObjectMapper</span> <span class="n">objectMapper</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">ObjectMapper</span><span class="o">();</span>
+<span class="nc">MyBody</span> <span class="n">myBody</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">MyBody</span><span class="o">(</span><span class="mi">2</span><span class="o">,</span> <span class="s">"Hello Jackson"</span><span class="o">);</span>
+<span class="nc">MyExchange</span><span class="o">&lt;</span><span class="nc">MyBody</span><span class="o">&gt;</span> <span class="n">myExchange</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">MyExchange</span><span class="o">&lt;</span><span class="nc">MyBody</span><span class="o">&gt;(</span><span class="n">myBody</span><span class="o">,</span> <span class="mi">5</span><span class="o">);</span>
+
+<span class="nc">String</span> <span class="n">json</span> <span class="o">=</span> <span class="n">objectMapper</span><span class="o">.</span><span class="na">writeValueAsString</span><span class="o">(</span><span class="n">myExchange</span><span class="o">);</span>
+<span class="nc">System</span><span class="o">.</span><span class="na">out</span><span class="o">.</span><span class="na">println</span><span class="o">(</span><span class="n">json</span><span class="o">);</span>
+
+<span class="nc">MyExchange</span> <span class="n">myDeserializedExchange</span> <span class="o">=</span> <span class="n">objectMapper</span><span class="o">.</span><span class="na">readValue</span><span class="o">(</span><span class="n">json</span><span class="o">,</span> <span class="nc">MyExchange</span><span class="o">.</span><span class="na">class</span><span class="o">);</span>
+<span class="nc">System</span><span class="o">.</span><span class="na">out</span><span class="o">.</span><span class="na">println</span><span class="o">(</span><span class="n">myDeserializedExchange</span><span class="o">.</span><span class="na">getBody</span><span class="o">().</span><span class="na">getClass</span><span class="o">());</span>
+<span class="o">...</span>
+</code></pre></div></div>
+
+<p>Output:</p>
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="nl">"body"</span><span class="p">:{</span><span class="nl">"someOtherField"</span><span class="p">:</span><span class="mi">2</span><span class="p">,</span><span class="nl">"message"</span><span class="p">:</span><span class="s2">"Hello Jackson"</span><span class="p">},</span><span class="nl">"someOtherField"</span><span class="p">:</span><span class="mi">5</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>class java.util.LinkedHashMap
+</code></pre></div></div>
+
+<p>When you want to get <code class="highlighter-rouge">MyExchange&lt;MyBody&gt;</code> you will get a <code class="highlighter-rouge">ClassCastException</code>.</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>java.lang.ClassCastException: java.util.LinkedHashMap cannot be cast to com.gorkemgok.example.jackson.generic.MyBody
+</code></pre></div></div>
+
+<p>For that reason we should keep type information of generic class in some where.</p>
+
+<h3 id="jsontypeinfo">@JsonTypeInfo</h3>
+
+<p>When you annotate a property with <code class="highlighter-rouge">@JsonTypeInfo</code> Jackson will keep the class name of the generic object in json and will use this class name while deserializing.
+You can see the <a href="https://www.javadoc.io/doc/com.fasterxml.jackson.core/jackson-annotations/2.9.9">javadoc</a>.</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="o">...</span>
+<span class="nd">@JsonTypeInfo</span><span class="o">(</span><span class="n">use</span> <span class="o">=</span> <span class="nc">JsonTypeInfo</span><span class="o">.</span><span class="na">Id</span><span class="o">.</span><span class="na">CLASS</span><span class="o">,</span> <span class="n">property</span> <span class="o">=</span> <span class="s">"@modelClass"</span><span class="o">)</span>
+<span class="kd">public</span> <span class="no">T</span> <span class="nf">getBody</span><span class="o">()</span> <span class="o">{</span>
+    <span class="k">return</span> <span class="n">body</span><span class="o">;</span>
+<span class="o">}</span>
+<span class="o">...</span>
+</code></pre></div></div>
+
+<p>That’s all!
+When convert <code class="highlighter-rouge">MyExchance</code> object to json you will get the following:</p>
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="nl">"body"</span><span class="p">:</span><span class="w">
+  </span><span class="p">{</span><span class="w">
+    </span><span class="nl">"@modelClass"</span><span class="p">:</span><span class="s2">"com.gorkemgok.example.jackson.generic.MyBody"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"someOtherField"</span><span class="p">:</span><span class="mi">2</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"message"</span><span class="p">:</span><span class="s2">"Hello Jackson"</span><span class="p">,</span><span class="w">
+  </span><span class="p">},</span><span class="w">
+  </span><span class="nl">"someOtherField"</span><span class="p">:</span><span class="mi">5</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+<p>An extra json property <code class="highlighter-rouge">@modelClass</code> which is specified at <code class="highlighter-rouge">property</code> field of <code class="highlighter-rouge">@JsonTypeInfo</code> annotation is appeared.</p>
+
+<p>When you deserialize json above you will get the correct body type.</p>
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="o">...</span>
+<span class="nc">MyExchange</span> <span class="n">myDeserializedExchange</span> <span class="o">=</span> <span class="n">objectMapper</span><span class="o">.</span><span class="na">readValue</span><span class="o">(</span><span class="n">json</span><span class="o">,</span> <span class="nc">MyExchange</span><span class="o">.</span><span class="na">class</span><span class="o">);</span>
+<span class="nc">System</span><span class="o">.</span><span class="na">out</span><span class="o">.</span><span class="na">println</span><span class="o">(</span><span class="n">myDeserializedExchange</span><span class="o">.</span><span class="na">getBody</span><span class="o">().</span><span class="na">getClass</span><span class="o">());</span>
+
+<span class="nc">MyExchange</span><span class="o">&lt;</span><span class="nc">MyBody</span><span class="o">&gt;</span> <span class="n">myDeserializedExchange2</span> <span class="o">=</span> <span class="n">objectMapper</span><span class="o">.</span><span class="na">readValue</span><span class="o">(</span><span class="n">json</span><span class="o">,</span> <span class="nc">MyExchange</span><span class="o">.</span><span class="na">class</span><span class="o">);</span>
+<span class="nc">System</span><span class="o">.</span><span class="na">out</span><span class="o">.</span><span class="na">println</span><span class="o">(</span><span class="n">myDeserializedExchange2</span><span class="o">.</span><span class="na">getBody</span><span class="o">().</span><span class="na">getClass</span><span class="o">());</span>
+
+</code></pre></div></div>
+<p>Output:</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>class com.gorkemgok.example.jackson.generic.MyBody
+class com.gorkemgok.example.jackson.generic.MyBody
+</code></pre></div></div>
+
+<p>You can also use <code class="highlighter-rouge">TypeReference</code> class for type safe methods:</p>
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="o">...</span>
+
+<span class="kd">public</span> <span class="kd">static</span> <span class="o">&lt;</span><span class="no">T</span><span class="o">&gt;</span> <span class="nc">MyExchange</span><span class="o">&lt;</span><span class="no">T</span><span class="o">&gt;</span> <span class="nf">deserializeMyExchange</span><span class="o">(</span><span class="nc">String</span> <span class="n">json</span><span class="o">)</span> <span class="kd">throws</span> <span class="nc">IOException</span> <span class="o">{</span>
+    <span class="nc">MyExchange</span><span class="o">&lt;</span><span class="no">T</span><span class="o">&gt;</span> <span class="n">myExchange</span> <span class="o">=</span> <span class="n">objectMapper</span><span class="o">.</span><span class="na">readValue</span><span class="o">(</span><span class="n">json</span><span class="o">,</span> <span class="k">new</span> <span class="nc">TypeReference</span><span class="o">&lt;</span><span class="no">T</span><span class="o">&gt;(){});</span>
+    <span class="k">return</span> <span class="n">myExchange</span><span class="o">;</span>
+<span class="o">}</span>
+
+<span class="o">...</span>
+
+<span class="nc">MyExchange</span> <span class="n">myDeserializedExchange3</span> <span class="o">=</span> <span class="nc">Main</span><span class="o">.&lt;</span><span class="nc">MyBody</span><span class="o">&gt;</span><span class="n">deserializeMyExchange</span><span class="o">(</span><span class="n">json</span><span class="o">);</span>
+<span class="nc">System</span><span class="o">.</span><span class="na">out</span><span class="o">.</span><span class="na">println</span><span class="o">(</span><span class="n">myDeserializedExchange3</span><span class="o">.</span><span class="na">getBody</span><span class="o">().</span><span class="na">getClass</span><span class="o">());</span>
+
+<span class="o">...</span>
+</code></pre></div></div>
+<p>or</p>
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="o">...</span>
+
+<span class="kd">public</span> <span class="kd">static</span> <span class="o">&lt;</span><span class="no">T</span><span class="o">&gt;</span> <span class="nc">MyExchange</span><span class="o">&lt;</span><span class="no">T</span><span class="o">&gt;</span> <span class="nf">deserializeMyExchange</span><span class="o">(</span><span class="nc">String</span> <span class="n">json</span><span class="o">,</span> <span class="nc">Class</span><span class="o">&lt;</span><span class="no">T</span><span class="o">&gt;</span> <span class="n">clazz</span><span class="o">)</span> <span class="kd">throws</span> <span class="nc">IOException</span> <span class="o">{</span>
+    <span class="nc">MyExchange</span><span class="o">&lt;</span><span class="no">T</span><span class="o">&gt;</span> <span class="n">myExchange</span> <span class="o">=</span> <span class="n">objectMapper</span><span class="o">.</span><span class="na">readValue</span><span class="o">(</span><span class="n">json</span><span class="o">,</span> <span class="k">new</span> <span class="nc">TypeReference</span><span class="o">&lt;</span><span class="no">T</span><span class="o">&gt;(){});</span>
+    <span class="k">return</span> <span class="n">myExchange</span><span class="o">;</span>
+<span class="o">}</span>
+
+<span class="o">...</span>
+
+<span class="nc">MyExchange</span> <span class="n">myDeserializedExchange3</span> <span class="o">=</span> <span class="nc">Main</span><span class="o">.</span><span class="na">deserializeMyExchange</span><span class="o">(</span><span class="n">json</span><span class="o">,</span> <span class="nc">MyBody</span><span class="o">.</span><span class="na">class</span><span class="o">);</span>
+<span class="nc">System</span><span class="o">.</span><span class="na">out</span><span class="o">.</span><span class="na">println</span><span class="o">(</span><span class="n">myDeserializedExchange3</span><span class="o">.</span><span class="na">getBody</span><span class="o">().</span><span class="na">getClass</span><span class="o">());</span>
+
+<span class="o">...</span>
+</code></pre></div></div>
+<p>Output:</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>class com.gorkemgok.example.jackson.generic.MyBody
+class com.gorkemgok.example.jackson.generic.MyBody
+</code></pre></div></div>
+
+  </div><a class="u-url" href="/java/jackson/2019/08/19/serde-java-generics-with-jackson.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">Gorkem Gok&#39;s Developer Blog</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">Gorkem Gok&#39;s Developer Blog</li><li><a class="u-email" href="mailto:gorkemgok@gmail.com">gorkemgok@gmail.com</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/gorkemgok"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">gorkemgok</span></a></li><li><a href="https://www.twitter.com/gorkem_gok"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">gorkem_gok</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>I write about development.</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>
